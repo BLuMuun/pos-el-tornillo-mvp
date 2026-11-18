@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>POS El Tornillo — Prototipo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #203b64;
+      --teal: #008b99;
+      --paper: #f3f6fa;
+      --ink: #202832;
+      --muted: #596a7d;
+      --line: #d8e0e8;
+      --red: #a52d2d;
+      --amber: #9b5d00;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    header { padding: 24px clamp(18px, 5vw, 64px); background: var(--navy); color: white; }
+    header h1 { margin: 0 0 6px; font-size: clamp(1.4rem, 3vw, 2rem); }
+    header p { margin: 0; color: #dbe8f6; }
+    main { max-width: 1240px; margin: 24px auto 48px; padding: 0 18px; }
+    .notice { border: 1px solid #e2c991; border-left: 5px solid var(--amber); background: #fff8e7; border-radius: 8px; padding: 12px 15px; margin-bottom: 18px; }
+    .notice strong { display: block; margin-bottom: 4px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(310px, 0.9fr); gap: 18px; align-items: start; }
+    .panel { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: 0 3px 12px #1d35570d; }
+    .panel h2 { margin: 0 0 14px; font-size: 1.2rem; color: var(--navy); }
+    .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .field { display: grid; gap: 6px; }
+    .field.grow { flex: 1 1 220px; }
+    label { font-weight: 600; font-size: .92rem; }
+    input { min-height: 40px; border: 1px solid #aebbc9; border-radius: 7px; padding: 8px 10px; font: inherit; }
+    input:focus, button:focus-visible { outline: 3px solid #80d4dc; outline-offset: 2px; }
+    .products { display: grid; gap: 10px; }
+    .product { display: grid; grid-template-columns: minmax(150px, 1fr) auto auto auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 9px; padding: 12px; }
+    .product h3 { margin: 0 0 4px; font-size: 1rem; }
+    .product small { color: var(--muted); }
+    .stock { font-weight: 700; white-space: nowrap; }
+    .stock.low { color: var(--red); }
+    .qty { width: 76px; }
+    button { min-height: 40px; padding: 8px 12px; border: 0; border-radius: 7px; background: var(--navy); color: white; font: inherit; font-weight: 650; cursor: pointer; }
+    button:hover { background: #294d80; }
+    button.secondary { color: var(--navy); background: #eaf0f7; }
+    button.secondary:hover { background: #dce7f2; }
+    button.danger { background: var(--red); }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    .cart-list, .history-list, .alert-list { display: grid; gap: 8px; }
+    .cart-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .cart-row small { display: block; color: var(--muted); }
+    .remove { min-height: 32px; padding: 4px 9px; }
+    .empty { color: var(--muted); padding: 8px 0; }
+    .check { display: flex; align-items: flex-start; gap: 8px; margin: 14px 0; font-weight: 400; color: var(--muted); }
+    .check input { min-height: auto; margin-top: 3px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .message { display: none; margin: 14px 0 0; padding: 11px 12px; border-radius: 8px; font-weight: 600; }
+    .message.show { display: block; }
+    .message.ok { color: #175d3c; background: #e9f7ef; border: 1px solid #b8e3c8; }
+    .message.error { color: #842424; background: #fff0f0; border: 1px solid #ecc4c4; }
+    .message.alert { color: #704400; background: #fff5db; border: 1px solid #f0d48b; }
+    .history { margin-top: 18px; }
+    .sale { border-bottom: 1px solid var(--line); padding: 10px 0; }
+    .sale strong { color: var(--navy); }
+    .sale small { display: block; color: var(--muted); margin-top: 3px; }
+    .alerts { margin-top: 18px; }
+    .alert-item { border-left: 4px solid var(--amber); background: #fff8e7; padding: 9px 10px; border-radius: 5px; }
+    .alert-item small { display: block; color: var(--muted); margin-top: 3px; }
+    .footnote { color: var(--muted); font-size: .88rem; margin-top: 18px; }
+    @media (max-width: 820px) {
+      .layout { grid-template-columns: 1fr; }
+      .product { grid-template-columns: minmax(120px, 1fr) auto; }
+      .product .qty, .product button { justify-self: end; }
+    }
+    @media (max-width: 480px) {
+      .product { grid-template-columns: 1fr auto; }
+      .product .stock { grid-column: 1; }
+      .product .qty { grid-column: 2; grid-row: 2; }
+      .product button { grid-column: 2; grid-row: 3; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>POS El Tornillo</h1>
+    <p>Prototipo local para registrar ventas y controlar existencias</p>
+  </header>
+
+  <main>
+    <div class="notice" role="note">
+      <strong>Catálogo de demostración</strong>
+      Estos nombres, códigos y cantidades son ficticios para mostrar el flujo. El catálogo real y el canal de alerta siguen pendientes de confirmar con el dueño y bodega.
+    </div>
+
+    <div class="layout">
+      <section class="panel" aria-labelledby="catalog-title">
+        <h2 id="catalog-title">Productos</h2>
+        <div class="toolbar">
+          <div class="field grow">
+            <label for="search">Buscar por código o nombre</label>
+            <input id="search" type="search" placeholder="Ej.: P-001 o tornillo" autocomplete="off">
+          </div>
+        </div>
+        <div id="products" class="products" aria-live="polite"></div>
+      </section>
+
+      <aside>
+        <section class="panel" aria-labelledby="sale-title">
+          <h2 id="sale-title">Nueva venta</h2>
+          <div class="field">
+            <label for="seller">Vendedor</label>
+            <input id="seller" type="text" maxlength="80" placeholder="Escribe el nombre del vendedor">
+          </div>
+          <div class="history" aria-label="Detalle de venta">
+            <h3>Detalle</h3>
+            <div id="cart" class="cart-list"></div>
+          </div>
+          <label class="check" for="simulate-error">
+            <input id="simulate-error" type="checkbox">
+            <span>Simular error al guardar para mostrar la reversión de la operación</span>
+          </label>
+          <div class="actions">
+            <button id="register-sale">Confirmar venta</button>
+            <button id="clear-cart" class="secondary" type="button">Vaciar detalle</button>
+          </div>
+          <div id="message" class="message" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="panel history" aria-labelledby="history-title">
+          <h2 id="history-title">Historial local</h2>
+          <div class="toolbar">
+            <div class="field grow">
+              <label for="history-seller">Filtrar por vendedor</label>
+              <input id="history-seller" type="search" placeholder="Nombre del vendedor">
+            </div>
+            <div class="field">
+              <label for="history-date">Filtrar por fecha</label>
+              <input id="history-date" type="date">
+            </div>
+          </div>
+          <div id="sales" class="history-list"></div>
+        </section>
+
+        <section class="panel alerts" aria-labelledby="alerts-title">
+          <h2 id="alerts-title">Alertas generadas</h2>
+          <div id="alerts" class="alert-list"></div>
+          <p class="footnote">El umbral es menor que 10 unidades. Con 10 exactas no se genera alerta. El canal de envío está pendiente de confirmación.</p>
+          <button id="reset-demo" class="secondary" type="button">Restablecer datos de demostración</button>
+        </section>
+      </aside>
+    </div>
+
+    <p class="footnote">Prototipo académico: usa almacenamiento local de este navegador cuando está disponible. No comparte existencias entre usuarios ni reemplaza una base de datos del negocio. El catálogo sigue siendo ficticio.</p>
+  </main>
+
+  <script>
+    'use strict';
+
+    const ALERT_THRESHOLD = 10;
+    const STORAGE_KEY = 'pos_el_tornillo_demo_v2';
+    const DEMO_PRODUCTS = [
+      { id: 'P-001', name: 'Tornillo demo 2 pulgadas', stock: 12 },
+      { id: 'P-002', name: 'Martillo demo', stock: 10 },
+      { id: 'P-003', name: 'Guantes demo', stock: 11 }
+    ];
+    function readSavedState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        if (!saved || !Array.isArray(saved.products) || !Array.isArray(saved.sales) || !Array.isArray(saved.alerts)) return null;
+        return saved;
+      } catch {
+        return null;
+      }
+    }
+    const savedState = readSavedState();
+    const products = savedState ? savedState.products : DEMO_PRODUCTS.map((item) => ({ ...item }));
+    const cart = new Map();
+    const sales = savedState ? savedState.sales : [];
+    const alerts = savedState ? savedState.alerts : [];
+
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+
+    function showMessage(text, kind) {
+      const box = $('message');
+      box.textContent = text;
+      box.className = `message show ${kind}`;
+    }
+
+    function saveLocalState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ products, sales, alerts }));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function renderProducts() {
+      const query = $('search').value.trim().toLocaleLowerCase('es-CL');
+      const visible = products.filter((product) =>
+        `${product.id} ${product.name}`.toLocaleLowerCase('es-CL').includes(query)
+      );
+      $('products').innerHTML = visible.length ? visible.map((product) => `
+        <article class="product">
+          <div><h3>${escapeHtml(product.name)}</h3><small>Código ${escapeHtml(product.id)}</small></div>
+          <div class="stock ${product.stock < ALERT_THRESHOLD ? 'low' : ''}">Stock: ${product.stock}</div>
+          <input class="qty" id="qty-${product.id}" type="number" min="1" step="1" value="1" aria-label="Cantidad de ${escapeHtml(product.name)}">
+          <button type="button" data-add="${product.id}" ${product.stock < 1 ? 'disabled' : ''}>Agregar</button>
+        </article>
+      `).join('') : '<p class="empty">No se encontraron productos.</p>';
+    }
+
+    function renderCart() {
+      const entries = [...cart.entries()];
+      $('cart').innerHTML = entries.length ? entries.map(([productId, quantity]) => {
+        const product = products.find((item) => item.id === productId);
+        return `<div class="cart-row">
+          <div>${escapeHtml(product.name)}<small>${escapeHtml(product.id)}</small></div>
+          <strong>${quantity} un.</strong>
+          <button class="secondary remove" type="button" data-remove="${productId}" aria-label="Quitar ${escapeHtml(product.name)}">Quitar</button>
+        </div>`;
+      }).join('') : '<p class="empty">Agrega productos para iniciar la venta.</p>';
+    }
+
+    function renderSales() {
+      const sellerQuery = $('history-seller').value.trim().toLocaleLowerCase('es-CL');
+      const dateQuery = $('history-date').value;
+      const filtered = sales.filter((sale) => {
+        const matchesSeller = !sellerQuery || sale.seller.toLocaleLowerCase('es-CL').includes(sellerQuery);
+        const matchesDate = !dateQuery || sale.date === dateQuery;
+        return matchesSeller && matchesDate;
+      });
+      $('sales').innerHTML = filtered.length ? filtered.slice().reverse().map((sale) => `
+        <div class="sale">
+          <strong>${escapeHtml(sale.id)} — ${escapeHtml(sale.seller)}</strong>
+          <small>${escapeHtml(sale.time)} · ${sale.items.map((item) => `${escapeHtml(item.name)} × ${item.quantity}`).join(', ')}</small>
+        </div>
+      `).join('') : '<p class="empty">No hay ventas que coincidan con esos filtros.</p>';
+    }
+
+    function renderAlerts() {
+      $('alerts').innerHTML = alerts.length ? alerts.slice().reverse().map((alert) => `
+        <div class="alert-item"><strong>${escapeHtml(alert.name)}: ${alert.stock} unidades</strong>
+          <small>${escapeHtml(alert.time)} · Canal por confirmar</small>
+        </div>
+      `).join('') : '<p class="empty">Aún no se generan alertas.</p>';
+    }
+
+    function addToCart(productId) {
+      const product = products.find((item) => item.id === productId);
+      const quantity = Number($(`qty-${productId}`).value);
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        showMessage('La cantidad debe ser un número entero mayor que cero.', 'error');
+        return;
+      }
+      const newQuantity = (cart.get(productId) || 0) + quantity;
+      if (newQuantity > product.stock) {
+        showMessage(`No hay stock suficiente de ${product.name}. Disponible: ${product.stock}.`, 'error');
+        return;
+      }
+      cart.set(productId, newQuantity);
+      renderCart();
+      showMessage(`${quantity} unidad(es) agregada(s) al detalle.`, 'ok');
+    }
+
+    function registerSale() {
+      const seller = $('seller').value.trim();
+      if (!seller) {
+        showMessage('Escribe el nombre del vendedor antes de confirmar.', 'error');
+        $('seller').focus();
+        return;
+      }
+      if (!cart.size) {
+        showMessage('Agrega al menos un producto al detalle.', 'error');
+        return;
+      }
+
+      // Se valida el detalle completo antes de cambiar el inventario.
+      const items = [...cart.entries()].map(([productId, quantity]) => ({
+        product: products.find((item) => item.id === productId), quantity
+      }));
+      const shortage = items.find(({ product, quantity }) => quantity > product.stock);
+      if (shortage) {
+        showMessage(`Venta rechazada: stock insuficiente de ${shortage.product.name}. No se modificó el inventario.`, 'error');
+        return;
+      }
+
+      if ($('simulate-error').checked) {
+        showMessage('Error simulado al guardar. Se revirtió la operación: no se guardó la venta ni se descontó stock.', 'error');
+        return;
+      }
+
+      const now = new Date();
+      const time = new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'medium' }).format(now);
+      const sale = {
+        id: `V-${String(sales.length + 1).padStart(3, '0')}`,
+        seller,
+        date: new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10),
+        time,
+        items: items.map(({ product, quantity }) => ({ id: product.id, name: product.name, quantity }))
+      };
+
+      // En este prototipo local, este bloque simula el guardado atómico de la venta.
+      items.forEach(({ product, quantity }) => { product.stock -= quantity; });
+      sales.push(sale);
+
+      const newAlerts = items
+        .filter(({ product }) => product.stock < ALERT_THRESHOLD)
+        .map(({ product }) => ({ name: product.name, stock: product.stock, time }));
+      alerts.push(...newAlerts);
+      const saved = saveLocalState();
+
+      cart.clear();
+      renderProducts();
+      renderCart();
+      renderSales();
+      renderAlerts();
+      if (newAlerts.length) {
+        showMessage(`Venta ${sale.id} confirmada. Stock actualizado y alerta generada por quedar bajo 10 unidades. ${saved ? 'Datos guardados en este navegador.' : 'El navegador no permitió guardar los datos.'} Canal pendiente.`, 'alert');
+      } else {
+        showMessage(`Venta ${sale.id} confirmada. Stock actualizado; no corresponde alerta. ${saved ? 'Datos guardados en este navegador.' : 'El navegador no permitió guardar los datos.'}`, saved ? 'ok' : 'error');
+      }
+    }
+
+    $('search').addEventListener('input', renderProducts);
+    $('products').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-add]');
+      if (button) addToCart(button.dataset.add);
+    });
+    $('cart').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-remove]');
+      if (!button) return;
+      cart.delete(button.dataset.remove);
+      renderCart();
+    });
+    $('register-sale').addEventListener('click', registerSale);
+    $('history-seller').addEventListener('input', renderSales);
+    $('history-date').addEventListener('change', renderSales);
+    $('clear-cart').addEventListener('click', () => {
+      cart.clear();
+      renderCart();
+      $('message').className = 'message';
+    });
+    $('reset-demo').addEventListener('click', () => {
+      if (!window.confirm('¿Restablecer los productos, ventas y alertas de demostración de este navegador?')) return;
+      products.splice(0, products.length, ...DEMO_PRODUCTS.map((item) => ({ ...item })));
+      sales.splice(0, sales.length);
+      alerts.splice(0, alerts.length);
+      cart.clear();
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* El prototipo sigue funcionando en memoria. */ }
+      $('seller').value = '';
+      $('history-seller').value = '';
+      $('history-date').value = '';
+      renderProducts();
+      renderCart();
+      renderSales();
+      renderAlerts();
+      showMessage('Datos de demostración restablecidos.', 'ok');
+    });
+
+    renderProducts();
+    renderCart();
+    renderSales();
+    renderAlerts();
+  </script>
+</body>
+</html>
+
