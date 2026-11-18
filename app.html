@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>POS El Tornillo — prototipo integrado</title>
+  <style>
+    :root { color-scheme: light; --navy:#203b64; --teal:#008b99; --paper:#f3f6fa; --ink:#202832; --muted:#596a7d; --line:#d8e0e8; --red:#a52d2d; --amber:#9b5d00; font-family:"Segoe UI",Arial,sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); }
+    header { padding:20px clamp(18px,5vw,64px); background:var(--navy); color:white; }
+    header h1 { margin:0 0 5px; font-size:clamp(1.35rem,3vw,2rem); }
+    header p { margin:0; color:#dbe8f6; }
+    main { max-width:1280px; margin:22px auto 48px; padding:0 18px; }
+    .notice { border:1px solid #e2c991; border-left:5px solid var(--amber); background:#fff8e7; border-radius:8px; padding:12px 15px; margin-bottom:16px; line-height:1.45; }
+    .notice strong { display:block; margin-bottom:4px; }
+    .layout { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(310px,.9fr); gap:18px; align-items:start; }
+    .panel { background:white; border:1px solid var(--line); border-radius:12px; padding:17px; margin-bottom:16px; box-shadow:0 3px 12px #1d35570d; }
+    .panel h2 { margin:0 0 13px; color:var(--navy); font-size:1.18rem; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:13px; }
+    .field { display:grid; gap:6px; }
+    .field.grow { flex:1 1 220px; }
+    label { font-size:.92rem; font-weight:600; }
+    input { min-height:40px; border:1px solid #aebbc9; border-radius:7px; padding:8px 10px; font:inherit; }
+    input:focus,button:focus-visible { outline:3px solid #80d4dc; outline-offset:2px; }
+    .products { display:grid; gap:9px; }
+    .product { display:grid; grid-template-columns:minmax(150px,1fr) auto auto auto; gap:12px; align-items:center; border:1px solid var(--line); border-radius:9px; padding:11px; }
+    .product h3 { margin:0 0 4px; font-size:1rem; }
+    .product small,.muted { color:var(--muted); }
+    .stock { font-weight:700; white-space:nowrap; }
+    .stock.low { color:var(--red); }
+    .qty { width:76px; }
+    button { min-height:40px; padding:8px 12px; border:0; border-radius:7px; background:var(--navy); color:white; font:inherit; font-weight:650; cursor:pointer; }
+    button:hover { background:#294d80; }
+    button.secondary { color:var(--navy); background:#eaf0f7; }
+    button.secondary:hover { background:#dce7f2; }
+    button.danger { background:var(--red); }
+    button:disabled { cursor:not-allowed; opacity:.55; }
+    .cart-list,.history-list,.alert-list { display:grid; gap:8px; }
+    .cart-row { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); }
+    .cart-row small { display:block; color:var(--muted); }
+    .remove { min-height:32px; padding:4px 9px; }
+    .empty { color:var(--muted); padding:7px 0; }
+    .check { display:flex; align-items:flex-start; gap:8px; margin:13px 0; font-weight:400; color:var(--muted); }
+    .check input { min-height:auto; margin-top:4px; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; }
+    .message { display:none; padding:10px 12px; margin-top:12px; border-radius:7px; line-height:1.4; }
+    .message.show { display:block; }
+    .message.ok { color:#14532d; background:#eaf7ee; border:1px solid #a9d5b7; }
+    .message.error { color:#7f1d1d; background:#fff0f0; border:1px solid #e6b4b4; }
+    .message.alert { color:#704000; background:#fff8e7; border:1px solid #e2c991; }
+    .sale,.alert-item { border-bottom:1px solid var(--line); padding:9px 0; }
+    .sale small,.alert-item small { display:block; margin-top:4px; color:var(--muted); }
+    .footnote { color:var(--muted); font-size:.86rem; line-height:1.45; }
+    .connection { display:inline-flex; align-items:center; gap:7px; margin-top:10px; color:#e8f9ed; font-size:.9rem; }
+    .connection::before { content:""; width:8px; height:8px; border-radius:100%; background:#73db91; }
+    #load-error { display:none; }
+    @media(max-width:900px) { .layout { grid-template-columns:1fr; } }
+    @media(max-width:540px) { .product { grid-template-columns:1fr auto; } .product .stock { grid-column:1; } .product .qty { grid-column:1; } .product button { grid-column:2; grid-row:2/4; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>POS El Tornillo</h1>
+    <p>Prototipo integrado para registrar ventas y controlar existencias</p>
+    <span id="connection" class="connection">Conectado a la base demo local</span>
+  </header>
+  <main>
+    <div class="notice" role="note">
+      <strong>Entorno de demostración</strong>
+      El catálogo es ficticio y se guarda en una base SQLite local. Este servidor se limita a este equipo; no usar datos reales ni exponerlo en una red. El catálogo, las existencias, los permisos y el canal de alertas siguen pendientes de confirmar con el dueño y bodega.
+    </div>
+    <div id="load-error" class="message error show" role="alert">No se pudo conectar al servidor local. Ejecuta `python server.py` y abre esta página desde `http://127.0.0.1:8000/`.</div>
+
+    <div class="layout">
+      <section class="panel" aria-labelledby="catalog-title">
+        <h2 id="catalog-title">Productos</h2>
+        <div class="toolbar">
+          <div class="field grow">
+            <label for="search">Buscar por código o nombre</label>
+            <input id="search" type="search" placeholder="Ej.: P-001 o tornillo" autocomplete="off">
+          </div>
+        </div>
+        <div id="products" class="products" aria-live="polite"></div>
+      </section>
+
+      <aside>
+        <section class="panel" aria-labelledby="sale-title">
+          <h2 id="sale-title">Nueva venta</h2>
+          <div class="field">
+            <label for="seller">Vendedor</label>
+            <input id="seller" type="text" maxlength="80" placeholder="Nombre de demostración">
+          </div>
+          <div class="history" aria-label="Detalle de venta">
+            <h3>Detalle</h3>
+            <div id="cart" class="cart-list"></div>
+          </div>
+          <label class="check" for="simulate-error">
+            <input id="simulate-error" type="checkbox">
+            <span>Simular un error de guardado para comprobar que no se descuente stock</span>
+          </label>
+          <div class="actions">
+            <button id="register-sale" type="button">Confirmar venta</button>
+            <button id="clear-cart" class="secondary" type="button">Vaciar detalle</button>
+          </div>
+          <div id="message" class="message" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="history-title">
+          <h2 id="history-title">Historial</h2>
+          <div class="toolbar">
+            <div class="field grow">
+              <label for="history-seller">Filtrar por vendedor</label>
+              <input id="history-seller" type="search" placeholder="Nombre del vendedor">
+            </div>
+            <div class="field">
+              <label for="history-date">Filtrar por fecha</label>
+              <input id="history-date" type="date">
+            </div>
+          </div>
+          <div id="sales" class="history-list"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="alerts-title">
+          <h2 id="alerts-title">Alertas generadas</h2>
+          <div id="alerts" class="alert-list"></div>
+          <p class="footnote">La alerta aparece en esta pantalla cuando el stock queda bajo 10. El envío a una persona o canal externo no está configurado.</p>
+          <button id="reset-demo" class="secondary" type="button">Restablecer datos demo</button>
+        </section>
+      </aside>
+    </div>
+    <p class="footnote">Prototipo académico. SQLite permite probar concurrencia en este equipo, pero esta aplicación no incorpora usuarios, roles, cifrado, copias de seguridad, despliegue ni acceso compartido por internet.</p>
+  </main>
+
+  <script>
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const cart = new Map();
+    let products = [];
+    let sales = [];
+    let alerts = [];
+
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[char]));
+
+    function showMessage(text, kind) {
+      $('message').textContent = text;
+      $('message').className = `message show ${kind}`;
+    }
+
+    async function request(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        const error = new Error(body.error || 'No se pudo completar la solicitud.');
+        error.status = response.status;
+        error.code = body.code;
+        throw error;
+      }
+      return body;
+    }
+
+    async function refreshProducts() {
+      const result = await request('/api/products');
+      products = result.products;
+      renderProducts();
+    }
+
+    async function refreshSales() {
+      const query = new URLSearchParams();
+      const seller = $('history-seller').value.trim();
+      const saleDate = $('history-date').value;
+      if (seller) query.set('seller', seller);
+      if (saleDate) query.set('date', saleDate);
+      const result = await request(`/api/sales?${query.toString()}`);
+      sales = result.sales;
+      renderSales();
+    }
+
+    async function refreshAlerts() {
+      const result = await request('/api/alerts');
+      alerts = result.alerts;
+      renderAlerts();
+    }
+
+    function renderProducts() {
+      const query = $('search').value.trim().toLocaleLowerCase('es-CL');
+      const visible = products.filter((product) =>
+        `${product.id} ${product.name}`.toLocaleLowerCase('es-CL').includes(query)
+      );
+      $('products').innerHTML = visible.length ? visible.map((product) => `
+        <article class="product">
+          <div><h3>${escapeHtml(product.name)}</h3><small>Código ${escapeHtml(product.id)}</small></div>
+          <div class="stock ${product.stock < product.threshold ? 'low' : ''}">Stock: ${product.stock}</div>
+          <input class="qty" id="qty-${escapeHtml(product.id)}" type="number" min="1" step="1" value="1" aria-label="Cantidad de ${escapeHtml(product.name)}">
+          <button type="button" data-add="${escapeHtml(product.id)}" ${product.stock < 1 ? 'disabled' : ''}>Agregar</button>
+        </article>
+      `).join('') : '<p class="empty">No se encontraron productos.</p>';
+    }
+
+    function renderCart() {
+      const entries = [...cart.entries()];
+      $('cart').innerHTML = entries.length ? entries.map(([productId, quantity]) => {
+        const product = products.find((item) => item.id === productId);
+        return `<div class="cart-row">
+          <div>${escapeHtml(product.name)}<small>${escapeHtml(product.id)}</small></div>
+          <strong>${quantity} un.</strong>
+          <button class="secondary remove" type="button" data-remove="${escapeHtml(productId)}" aria-label="Quitar ${escapeHtml(product.name)}">Quitar</button>
+        </div>`;
+      }).join('') : '<p class="empty">Agrega productos para iniciar la venta.</p>';
+    }
+
+    function renderSales() {
+      $('sales').innerHTML = sales.length ? sales.map((sale) => `
+        <div class="sale">
+          <strong>V-${String(sale.id).padStart(3, '0')} — ${escapeHtml(sale.seller)}</strong>
+          <small>${escapeHtml(new Date(sale.created_at).toLocaleString('es-CL'))} · ${sale.items.map((item) => `${escapeHtml(item.product_name)} × ${item.quantity}`).join(', ')}</small>
+        </div>
+      `).join('') : '<p class="empty">No hay ventas que coincidan con esos filtros.</p>';
+    }
+
+    function renderAlerts() {
+      $('alerts').innerHTML = alerts.length ? alerts.map((alert) => `
+        <div class="alert-item"><strong>${escapeHtml(alert.product_name)}: ${alert.stock} unidades</strong>
+          <small>${escapeHtml(new Date(alert.created_at).toLocaleString('es-CL'))} · Canal ${escapeHtml(alert.channel_status)}</small>
+        </div>
+      `).join('') : '<p class="empty">Aún no se generan alertas.</p>';
+    }
+
+    $('search').addEventListener('input', renderProducts);
+    $('products').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-add]');
+      if (!button) return;
+      const product = products.find((item) => item.id === button.dataset.add);
+      const quantity = Number($(`qty-${product.id}`).value);
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        showMessage('La cantidad debe ser un entero mayor que cero.', 'error');
+        return;
+      }
+      const newQuantity = (cart.get(product.id) || 0) + quantity;
+      if (newQuantity > product.stock) {
+        showMessage(`No hay stock suficiente de ${product.name}. Disponible: ${product.stock}.`, 'error');
+        return;
+      }
+      cart.set(product.id, newQuantity);
+      renderCart();
+      showMessage(`${quantity} unidad(es) agregada(s) al detalle.`, 'ok');
+    });
+
+    $('cart').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-remove]');
+      if (!button) return;
+      cart.delete(button.dataset.remove);
+      renderCart();
+    });
+
+    $('register-sale').addEventListener('click', async () => {
+      const seller = $('seller').value.trim();
+      if (!seller) {
+        showMessage('Escribe el nombre del vendedor antes de confirmar.', 'error');
+        $('seller').focus();
+        return;
+      }
+      if (!cart.size) {
+        showMessage('Agrega al menos un producto al detalle.', 'error');
+        return;
+      }
+      const items = [...cart.entries()].map(([productId, quantity]) => ({ product_id: productId, quantity }));
+      try {
+        const result = await request('/api/sales', {
+          method: 'POST',
+          body: JSON.stringify({ seller, request_id: crypto.randomUUID(), items, simulate_error: $('simulate-error').checked })
+        });
+        cart.clear();
+        $('simulate-error').checked = false;
+        await Promise.all([refreshProducts(), refreshSales(), refreshAlerts()]);
+        if (result.idempotent_replay) {
+          showMessage('La solicitud ya estaba registrada; no se volvió a descontar el stock.', 'ok');
+        } else if (result.alerts.length) {
+          showMessage(`Venta V-${String(result.sale.id).padStart(3, '0')} confirmada. Stock actualizado y alerta generada bajo 10. Canal pendiente.`, 'alert');
+        } else {
+          showMessage(`Venta V-${String(result.sale.id).padStart(3, '0')} confirmada. Stock actualizado.`, 'ok');
+        }
+      } catch (error) {
+        await refreshProducts();
+        showMessage(error.message, 'error');
+      }
+      renderCart();
+    });
+
+    $('clear-cart').addEventListener('click', () => {
+      cart.clear();
+      renderCart();
+      $('message').className = 'message';
+    });
+    $('history-seller').addEventListener('input', () => refreshSales().catch((error) => showMessage(error.message, 'error')));
+    $('history-date').addEventListener('change', () => refreshSales().catch((error) => showMessage(error.message, 'error')));
+    $('reset-demo').addEventListener('click', async () => {
+      if (!window.confirm('¿Restablecer ventas, alertas y existencias demo de este servidor local?')) return;
+      try {
+        await request('/api/reset', { method:'POST', body:'{}' });
+        cart.clear();
+        $('seller').value = '';
+        $('history-seller').value = '';
+        $('history-date').value = '';
+        $('simulate-error').checked = false;
+        await Promise.all([refreshProducts(), refreshSales(), refreshAlerts()]);
+        showMessage('Datos ficticios restablecidos.', 'ok');
+      } catch (error) {
+        showMessage(error.message, 'error');
+      }
+      renderCart();
+    });
+
+    (async () => {
+      try {
+        await request('/api/health');
+        $('load-error').style.display = 'none';
+        await Promise.all([refreshProducts(), refreshSales(), refreshAlerts()]);
+      } catch (error) {
+        $('connection').textContent = 'Servidor no disponible';
+        $('connection').style.color = '#ffe0e0';
+        $('load-error').style.display = 'block';
+        $('load-error').textContent = `${error.message} Ejecuta “python server.py” y abre http://127.0.0.1:8000/.`;
+      }
+      renderCart();
+    })();
+  </script>
+</body>
+</html>

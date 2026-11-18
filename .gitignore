@@ -4,4 +4,6 @@ Desktop.ini
 .vscode/
 .idea/
 *.log
-
+__pycache__/
+*.py[cod]
+data/
